@@ -60,6 +60,9 @@ functions:
           path: tasks/{id}
           method: delete
 
+plugins:
+  - serverless-offline
+
 resources:
   Resources:
     TasksTable:
