@@ -1,156 +1,100 @@
 "use strict";
 
-const {
-  DynamoDBClient,
-  PutItemCommand,
-  GetItemCommand,
-  ScanCommand,
-  UpdateItemCommand,
-  DeleteItemCommand,
-} = require("@aws-sdk/client-dynamodb");
-const express = require("express");
-const serverless = require("serverless-http");
+const AWS = require("aws-sdk");
+const uuid = require("uuid");
 
-const app = express();
-const client = new DynamoDBClient({ region: process.env.AWS_REGION });
+const docClient = new AWS.DynamoDB.DocumentClient({
+  endpoint: "http://localhost:4566",
+  region: "us-east-1",
+});
 
-const TASKS_TABLE = process.env.TASKS_TABLE;
+const TABLE_NAME = process.env.TASKS_TABLE;
 
-app.use(express.json());
-
-// Create a new task
-app.post("/tasks", async function (req, res) {
-  const { taskId, title, description, status, dueDate } = req.body;
-  if (typeof taskId !== "string") {
-    return res.status(400).json({ error: '"taskId" must be a string' });
-  }
-
-  const params = {
-    TableName: TASKS_TABLE,
-    Item: {
-      taskId: { S: taskId },
-      title: { S: title },
-      description: { S: description },
-      status: { S: status },
-      dueDate: { S: dueDate },
-    },
+// Create Task
+module.exports.createTask = async (event) => {
+  const { title, description, status, dueDate } = JSON.parse(event.body);
+  const id = uuid.v4();
+  const newTask = { id, title, description, status, dueDate };
+  await docClient
+    .put({
+      TableName: TABLE_NAME,
+      Item: newTask,
+    })
+    .promise();
+  return {
+    statusCode: 201,
+    body: JSON.stringify(newTask),
   };
+};
 
-  try {
-    const command = new PutItemCommand(params);
-    await client.send(command);
-    res.json({ taskId, title, description, status, dueDate });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Could not create task" });
-  }
-});
-
-// Get all tasks
-app.get("/tasks", async function (req, res) {
-  const params = {
-    TableName: TASKS_TABLE,
+// Get All Tasks
+module.exports.getAllTasks = async () => {
+  const data = await docClient.scan({ TableName: TABLE_NAME }).promise();
+  return {
+    statusCode: 200,
+    body: JSON.stringify(data.Items),
   };
+};
 
-  try {
-    const command = new ScanCommand(params);
-    const data = await client.send(command);
-    res.json(data.Items);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Could not retrieve tasks" });
+// Get Task by ID
+module.exports.getTaskById = async (event) => {
+  const { id } = event.pathParameters;
+  const data = await docClient
+    .get({
+      TableName: TABLE_NAME,
+      Key: { id },
+    })
+    .promise();
+  if (!data.Item) {
+    return {
+      statusCode: 404,
+      body: JSON.stringify({ error: "Task not found" }),
+    };
   }
-});
-
-// Get a specific task by ID
-app.get("/tasks/:taskId", async function (req, res) {
-  const params = {
-    TableName: TASKS_TABLE,
-    Key: {
-      taskId: { S: req.params.taskId },
-    },
+  return {
+    statusCode: 200,
+    body: JSON.stringify(data.Item),
   };
+};
 
-  try {
-    const command = new GetItemCommand(params);
-    const { Item } = await client.send(command);
-    if (Item) {
-      res.json({
-        taskId: Item.taskId.S,
-        title: Item.title.S,
-        description: Item.description.S,
-        status: Item.status.S,
-        dueDate: Item.dueDate.S,
-      });
-    } else {
-      res
-        .status(404)
-        .json({ error: 'Could not find task with provided "taskId"' });
-    }
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Could not retrieve task" });
-  }
-});
-
-// Update a task
-app.put("/tasks/:taskId", async function (req, res) {
-  const { title, description, status, dueDate } = req.body;
-  const params = {
-    TableName: TASKS_TABLE,
-    Key: {
-      taskId: { S: req.params.taskId },
-    },
-    UpdateExpression:
-      "set title = :title, description = :description, status = :status, dueDate = :dueDate",
-    ExpressionAttributeValues: {
-      ":title": { S: title },
-      ":description": { S: description },
-      ":status": { S: status },
-      ":dueDate": { S: dueDate },
-    },
-    ReturnValues: "ALL_NEW",
+// Update Task
+module.exports.updateTask = async (event) => {
+  const { id } = event.pathParameters;
+  const { title, description, status, dueDate } = JSON.parse(event.body);
+  await docClient
+    .update({
+      TableName: TABLE_NAME,
+      Key: { id },
+      UpdateExpression:
+        "set title = :title, description = :description, #status = :status, dueDate = :dueDate",
+      ExpressionAttributeNames: {
+        "#status": "status",
+      },
+      ExpressionAttributeValues: {
+        ":title": title,
+        ":description": description,
+        ":status": status,
+        ":dueDate": dueDate,
+      },
+    })
+    .promise();
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ id, title, description, status, dueDate }),
   };
+};
 
-  try {
-    const command = new UpdateItemCommand(params);
-    const { Attributes } = await client.send(command);
-    res.json({
-      taskId: Attributes.taskId.S,
-      title: Attributes.title.S,
-      description: Attributes.description.S,
-      status: Attributes.status.S,
-      dueDate: Attributes.dueDate.S,
-    });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Could not update task" });
-  }
-});
-
-// Delete a task
-app.delete("/tasks/:taskId", async function (req, res) {
-  const params = {
-    TableName: TASKS_TABLE,
-    Key: {
-      taskId: { S: req.params.taskId },
-    },
+// Delete Task
+module.exports.deleteTask = async (event) => {
+  const { id } = event.pathParameters;
+  await docClient
+    .delete({
+      TableName: TABLE_NAME,
+      Key: { id },
+    })
+    .promise();
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: "Task deleted successfully" }),
   };
-
-  try {
-    const command = new DeleteItemCommand(params);
-    await client.send(command);
-    res.json({ message: "Task deleted successfully" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: "Could not delete task" });
-  }
-});
-
-app.use((req, res, next) => {
-  return res.status(404).json({
-    error: "Not Found",
-  });
-});
-
-exports.handler = serverless(app);
+};
