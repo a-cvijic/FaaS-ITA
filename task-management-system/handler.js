@@ -1,18 +1,73 @@
-const { DynamoDBClient, PutItemCommand, GetItemCommand } = require("@aws-sdk/client-dynamodb");
+"use strict";
+
+const {
+  DynamoDBClient,
+  PutItemCommand,
+  GetItemCommand,
+  ScanCommand,
+  UpdateItemCommand,
+  DeleteItemCommand,
+} = require("@aws-sdk/client-dynamodb");
 const express = require("express");
 const serverless = require("serverless-http");
 
 const app = express();
+const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 
-const USERS_TABLE = process.env.USERS_TABLE;
+const TASKS_TABLE = process.env.TASKS_TABLE;
 
 app.use(express.json());
 
-app.get("/users/:userId", async function (req, res) {
+// Create a new task
+app.post("/tasks", async function (req, res) {
+  const { taskId, title, description, status, dueDate } = req.body;
+  if (typeof taskId !== "string") {
+    return res.status(400).json({ error: '"taskId" must be a string' });
+  }
+
   const params = {
-    TableName: USERS_TABLE,
+    TableName: TASKS_TABLE,
+    Item: {
+      taskId: { S: taskId },
+      title: { S: title },
+      description: { S: description },
+      status: { S: status },
+      dueDate: { S: dueDate },
+    },
+  };
+
+  try {
+    const command = new PutItemCommand(params);
+    await client.send(command);
+    res.json({ taskId, title, description, status, dueDate });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Could not create task" });
+  }
+});
+
+// Get all tasks
+app.get("/tasks", async function (req, res) {
+  const params = {
+    TableName: TASKS_TABLE,
+  };
+
+  try {
+    const command = new ScanCommand(params);
+    const data = await client.send(command);
+    res.json(data.Items);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Could not retrieve tasks" });
+  }
+});
+
+// Get a specific task by ID
+app.get("/tasks/:taskId", async function (req, res) {
+  const params = {
+    TableName: TASKS_TABLE,
     Key: {
-      userId: req.params.userId,
+      taskId: { S: req.params.taskId },
     },
   };
 
@@ -20,42 +75,75 @@ app.get("/users/:userId", async function (req, res) {
     const command = new GetItemCommand(params);
     const { Item } = await client.send(command);
     if (Item) {
-      const { userId, name } = Item;
-      res.json({ userId, name });
+      res.json({
+        taskId: Item.taskId.S,
+        title: Item.title.S,
+        description: Item.description.S,
+        status: Item.status.S,
+        dueDate: Item.dueDate.S,
+      });
     } else {
       res
         .status(404)
-        .json({ error: 'Could not find user with provided "userId"' });
+        .json({ error: 'Could not find task with provided "taskId"' });
     }
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Could not retreive user" });
+    res.status(500).json({ error: "Could not retrieve task" });
   }
 });
 
-app.post("/users", async function (req, res) {
-  const { userId, name } = req.body;
-  if (typeof userId !== "string") {
-    res.status(400).json({ error: '"userId" must be a string' });
-  } else if (typeof name !== "string") {
-    res.status(400).json({ error: '"name" must be a string' });
-  }
-
+// Update a task
+app.put("/tasks/:taskId", async function (req, res) {
+  const { title, description, status, dueDate } = req.body;
   const params = {
-    TableName: USERS_TABLE,
-    Item: {
-      userId: userId,
-      name: name,
+    TableName: TASKS_TABLE,
+    Key: {
+      taskId: { S: req.params.taskId },
+    },
+    UpdateExpression:
+      "set title = :title, description = :description, status = :status, dueDate = :dueDate",
+    ExpressionAttributeValues: {
+      ":title": { S: title },
+      ":description": { S: description },
+      ":status": { S: status },
+      ":dueDate": { S: dueDate },
+    },
+    ReturnValues: "ALL_NEW",
+  };
+
+  try {
+    const command = new UpdateItemCommand(params);
+    const { Attributes } = await client.send(command);
+    res.json({
+      taskId: Attributes.taskId.S,
+      title: Attributes.title.S,
+      description: Attributes.description.S,
+      status: Attributes.status.S,
+      dueDate: Attributes.dueDate.S,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Could not update task" });
+  }
+});
+
+// Delete a task
+app.delete("/tasks/:taskId", async function (req, res) {
+  const params = {
+    TableName: TASKS_TABLE,
+    Key: {
+      taskId: { S: req.params.taskId },
     },
   };
 
   try {
-    const command = new PutItemCommand(input);
+    const command = new DeleteItemCommand(params);
     await client.send(command);
-    res.json({ userId, name });
+    res.json({ message: "Task deleted successfully" });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Could not create user" });
+    res.status(500).json({ error: "Could not delete task" });
   }
 });
 
