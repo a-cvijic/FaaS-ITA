@@ -1,12 +1,9 @@
-# "org" ensures this Service is used with the correct Serverless Framework Access Key.
 org: ac21ita
-# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
 app: task-management-system
-# "service" is the name of this project. This will also be added to your AWS resource names.
 service: task-management-system
 
 custom:
-  tableName: 'users-table-${sls:stage}'
+  tableName: "tasks-table-${sls:stage}"
 
 provider:
   name: aws
@@ -23,26 +20,56 @@ provider:
             - dynamodb:UpdateItem
             - dynamodb:DeleteItem
           Resource:
-            - Fn::GetAtt: [ UsersTable, Arn ]
+            - Fn::GetAtt: [TasksTable, Arn]
   environment:
-    USERS_TABLE: ${self:custom.tableName}
+    TASKS_TABLE: ${self:custom.tableName}
 
 functions:
-  api:
-    handler: handler.handler
+  createTask:
+    handler: handler.createTask
     events:
-      - httpApi: '*'
+      - http:
+          path: tasks
+          method: post
+
+  getAllTasks:
+    handler: handler.getAllTasks
+    events:
+      - http:
+          path: tasks
+          method: get
+
+  getTaskById:
+    handler: handler.getTaskById
+    events:
+      - http:
+          path: tasks/{id}
+          method: get
+
+  updateTask:
+    handler: handler.updateTask
+    events:
+      - http:
+          path: tasks/{id}
+          method: put
+
+  deleteTask:
+    handler: handler.deleteTask
+    events:
+      - http:
+          path: tasks/{id}
+          method: delete
 
 resources:
   Resources:
-    UsersTable:
+    TasksTable:
       Type: AWS::DynamoDB::Table
       Properties:
         AttributeDefinitions:
-          - AttributeName: userId
+          - AttributeName: taskId
             AttributeType: S
         KeySchema:
-          - AttributeName: userId
+          - AttributeName: taskId
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
         TableName: ${self:custom.tableName}
