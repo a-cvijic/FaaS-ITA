@@ -8,6 +8,7 @@
     "serverless-http": "^3.2.0"
   },
   "devDependencies": {
+    "serverless-localstack": "^1.2.0",
     "serverless-offline": "^13.6.0"
   }
 }

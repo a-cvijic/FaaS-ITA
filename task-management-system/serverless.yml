@@ -1,78 +1,77 @@
-org: ac21ita
-app: task-management-system
 service: task-management-system
 
-custom:
-  tableName: "tasks-table-${sls:stage}"
+frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs20.x
-  iam:
-    role:
-      statements:
-        - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:Scan
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-          Resource:
-            - Fn::GetAtt: [TasksTable, Arn]
+  region: us-east-1
+  timeout: 30
   environment:
-    TASKS_TABLE: ${self:custom.tableName}
+    TASKS_TABLE: ${self:service}-tasks
+
+plugins:
+  - serverless-offline
+  - serverless-localstack
+
+custom:
+  localstack:
+    stages:
+      - local
 
 functions:
   createTask:
     handler: handler.createTask
     events:
       - http:
-          path: tasks
+          path: /tasks
           method: post
+          cors: true
 
   getAllTasks:
     handler: handler.getAllTasks
     events:
       - http:
-          path: tasks
+          path: /tasks
           method: get
+          cors: true
 
   getTaskById:
     handler: handler.getTaskById
     events:
       - http:
-          path: tasks/{id}
+          path: /tasks/{id}
           method: get
+          cors: true
 
   updateTask:
     handler: handler.updateTask
     events:
       - http:
-          path: tasks/{id}
+          path: /tasks/{id}
           method: put
+          cors: true
 
   deleteTask:
     handler: handler.deleteTask
     events:
       - http:
-          path: tasks/{id}
+          path: /tasks/{id}
           method: delete
-
-plugins:
-  - serverless-offline
+          cors: true
 
 resources:
   Resources:
     TasksTable:
       Type: AWS::DynamoDB::Table
       Properties:
+        TableName: ${self:provider.environment.TASKS_TABLE}
         AttributeDefinitions:
-          - AttributeName: taskId
+          - AttributeName: id
             AttributeType: S
         KeySchema:
-          - AttributeName: taskId
+          - AttributeName: id
             KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-        TableName: ${self:custom.tableName}
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
