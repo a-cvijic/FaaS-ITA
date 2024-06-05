@@ -9,6 +9,7 @@ provider:
   timeout: 30
   environment:
     TASKS_TABLE: ${self:service}-tasks
+    JWT_SECRET: my_jwt_secret
 
 plugins:
   - serverless-offline
