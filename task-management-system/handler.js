@@ -2,6 +2,7 @@
 
 const AWS = require("aws-sdk");
 const uuid = require("uuid");
+const jwt = require("jsonwebtoken");
 
 const docClient = new AWS.DynamoDB.DocumentClient({
   endpoint: "http://localhost:4566",
@@ -9,22 +10,44 @@ const docClient = new AWS.DynamoDB.DocumentClient({
 });
 
 const TABLE_NAME = process.env.TASKS_TABLE;
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Middleware to validate JWT
+const authenticateJWT = (event) => {
+  const token = event.headers.Authorization || event.headers.authorization;
+  if (!token) {
+    throw new Error("No token provided");
+  }
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    throw new Error("Unauthorized");
+  }
+};
 
 // Create Task
 module.exports.createTask = async (event) => {
-  const { title, description, status, dueDate } = JSON.parse(event.body);
-  const id = uuid.v4();
-  const newTask = { id, title, description, status, dueDate };
-  await docClient
-    .put({
-      TableName: TABLE_NAME,
-      Item: newTask,
-    })
-    .promise();
-  return {
-    statusCode: 201,
-    body: JSON.stringify(newTask),
-  };
+  try {
+    const user = authenticateJWT(event);
+    const { title, description, status, dueDate } = JSON.parse(event.body);
+    const id = uuid.v4();
+    const newTask = { id, title, description, status, dueDate };
+    await docClient
+      .put({
+        TableName: TABLE_NAME,
+        Item: newTask,
+      })
+      .promise();
+    return {
+      statusCode: 201,
+      body: JSON.stringify({ message: "Task created", task: newTask, user }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ message: error.message }),
+    };
+  }
 };
 
 // Get All Tasks
@@ -59,42 +82,58 @@ module.exports.getTaskById = async (event) => {
 
 // Update Task
 module.exports.updateTask = async (event) => {
-  const { id } = event.pathParameters;
-  const { title, description, status, dueDate } = JSON.parse(event.body);
-  await docClient
-    .update({
-      TableName: TABLE_NAME,
-      Key: { id },
-      UpdateExpression:
-        "set title = :title, description = :description, #status = :status, dueDate = :dueDate",
-      ExpressionAttributeNames: {
-        "#status": "status",
-      },
-      ExpressionAttributeValues: {
-        ":title": title,
-        ":description": description,
-        ":status": status,
-        ":dueDate": dueDate,
-      },
-    })
-    .promise();
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ id, title, description, status, dueDate }),
-  };
+  try {
+    const user = authenticateJWT(event);
+    const { id } = event.pathParameters;
+    const { title, description, status, dueDate } = JSON.parse(event.body);
+    await docClient
+      .update({
+        TableName: TABLE_NAME,
+        Key: { id },
+        UpdateExpression:
+          "set title = :title, description = :description, #status = :status, dueDate = :dueDate",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":title": title,
+          ":description": description,
+          ":status": status,
+          ":dueDate": dueDate,
+        },
+      })
+      .promise();
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ id, title, description, status, dueDate }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ message: error.message }),
+    };
+  }
 };
 
 // Delete Task
 module.exports.deleteTask = async (event) => {
-  const { id } = event.pathParameters;
-  await docClient
-    .delete({
-      TableName: TABLE_NAME,
-      Key: { id },
-    })
-    .promise();
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ message: "Task deleted successfully" }),
-  };
+  try {
+    const user = authenticateJWT(event);
+    const { id } = event.pathParameters;
+    await docClient
+      .delete({
+        TableName: TABLE_NAME,
+        Key: { id },
+      })
+      .promise();
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: "Task deleted successfully" }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ message: error.message }),
+    };
+  }
 };
