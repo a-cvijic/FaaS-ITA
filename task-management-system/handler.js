@@ -137,3 +137,14 @@ module.exports.deleteTask = async (event) => {
     };
   }
 };
+
+// Handle SQS Message
+module.exports.handleSQSMessage = async (event) => {
+  for (const record of event.Records) {
+    console.log("SQS message: ", JSON.stringify(record, null, 2));
+  }
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: "SQS message handled successfully" }),
+  };
+};
