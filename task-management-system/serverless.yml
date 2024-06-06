@@ -10,7 +10,6 @@ provider:
   environment:
     TASKS_TABLE: ${self:service}-tasks
     JWT_SECRET: my_jwt_secret
-    BUCKET_NAME: tms-uploads-bucket
 
 plugins:
   - serverless-offline
@@ -77,12 +76,23 @@ functions:
       - schedule:
           rate: rate(1 hour)
 
-  handleS3Upload:
-    handler: handler.handleS3Upload
+  handleDynamoDBStream:
+    handler: handler.handleDynamoDBStream
     events:
-      - s3:
-          bucket: ${self:provider.environment.BUCKET_NAME}
-          event: s3:ObjectCreated:*
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - TasksTable
+              - StreamArn
+
+  loginUser:
+    handler: handler.loginUser
+    events:
+      - http:
+          path: /login
+          method: post
+          cors: true
 
 resources:
   Resources:
@@ -106,11 +116,3 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: task-queue
-
-    UploadsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: ${self:provider.environment.BUCKET_NAME}
-        VersioningConfiguration:
-          Status: Enabled
-        AccessControl: Private

@@ -150,23 +150,38 @@ module.exports.handleSQSMessage = async (event) => {
   };
 };
 
-// Handle S3 Upload
-module.exports.handleS3Upload = async (event) => {
+// Handle DynamoDB Stream
+module.exports.handleDynamoDBStream = async (event) => {
   for (const record of event.Records) {
-    console.log("S3 event: ", JSON.stringify(record, null, 2));
+    console.log("DynamoDB Stream event: ", JSON.stringify(record, null, 2));
   }
   return {
     statusCode: 200,
-    body: JSON.stringify({ message: "S3 event handled successfully" }),
+    body: JSON.stringify({
+      message: "DynamoDB Stream event handled successfully",
+    }),
   };
 };
 
 // Hourly Task
 module.exports.hourlyTask = async (event) => {
   console.log("Hourly task executed at", new Date().toISOString());
-
+  // Logic
   return {
     statusCode: 200,
     body: JSON.stringify({ message: "Hourly task executed successfully" }),
+  };
+};
+
+// Handle User Login
+module.exports.loginUser = async (event) => {
+  const { username, password } = JSON.parse(event.body);
+  // Logic
+  console.log(`User login attempted with username: ${username}`);
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      message: `User ${username} logged in successfully`,
+    }),
   };
 };
