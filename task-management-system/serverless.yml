@@ -70,6 +70,12 @@ functions:
               - TaskQueue
               - Arn
 
+  hourlyTask:
+    handler: handler.hourlyTask
+    events:
+      - schedule:
+          rate: rate(1 hour)
+
 resources:
   Resources:
     TasksTable:

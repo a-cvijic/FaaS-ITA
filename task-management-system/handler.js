@@ -19,7 +19,8 @@ const authenticateJWT = (event) => {
     throw new Error("No token provided");
   }
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const tokenWithoutBearer = token.replace("Bearer ", "");
+    return jwt.verify(tokenWithoutBearer, JWT_SECRET);
   } catch (error) {
     throw new Error("Unauthorized");
   }
@@ -146,5 +147,15 @@ module.exports.handleSQSMessage = async (event) => {
   return {
     statusCode: 200,
     body: JSON.stringify({ message: "SQS message handled successfully" }),
+  };
+};
+
+// Hourly Task
+module.exports.hourlyTask = async (event) => {
+  console.log("Hourly task executed at", new Date().toISOString());
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: "Hourly task executed successfully" }),
   };
 };
