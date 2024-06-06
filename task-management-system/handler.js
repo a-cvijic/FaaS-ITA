@@ -150,6 +150,17 @@ module.exports.handleSQSMessage = async (event) => {
   };
 };
 
+// Handle S3 Upload
+module.exports.handleS3Upload = async (event) => {
+  for (const record of event.Records) {
+    console.log("S3 event: ", JSON.stringify(record, null, 2));
+  }
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: "S3 event handled successfully" }),
+  };
+};
+
 // Hourly Task
 module.exports.hourlyTask = async (event) => {
   console.log("Hourly task executed at", new Date().toISOString());
