@@ -3,6 +3,7 @@
 const AWS = require("aws-sdk");
 const uuid = require("uuid");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 const docClient = new AWS.DynamoDB.DocumentClient({
   endpoint: "http://localhost:4566",
@@ -184,4 +185,36 @@ module.exports.loginUser = async (event) => {
       message: `User ${username} logged in successfully`,
     }),
   };
+};
+
+// User registration
+module.exports.registerUser = async (event) => {
+  const { username, password } = JSON.parse(event.body);
+
+  // Hash the password
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = {
+    id: uuid.v4(),
+    username,
+    password: hashedPassword,
+  };
+
+  try {
+    await docClient
+      .put({
+        TableName: "Users",
+        Item: newUser,
+      })
+      .promise();
+    return {
+      statusCode: 201,
+      body: JSON.stringify({ message: "User registered successfully" }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: "Error registering user" }),
+    };
+  }
 };
